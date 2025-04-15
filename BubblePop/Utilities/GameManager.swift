@@ -71,6 +71,7 @@ class GameManager: ObservableObject {
     func resetGame(){
         score = 0
         bubbles.removeAll()
+        activePoints.removeAll()
         isGameOver = false
         lastPoppedColor = nil
         lastPoppedScore = nil
@@ -79,23 +80,34 @@ class GameManager: ObservableObject {
 
     
     func startSpawningBubbles(){
-        
-        var bubbleSpawned = 0
-        Timer.scheduledTimer(withTimeInterval: bubbleSpawnInterval, repeats: true) {timer in
-            if bubbleSpawned < self.maxBubbles{
-                self.spawnBubbles()
-                bubbleSpawned += 1
-            } else {
+        Timer.scheduledTimer(withTimeInterval: bubbleSpawnInterval, repeats: true) { [weak self] timer in
+            guard let self = self else {
                 timer.invalidate()
+                return
             }
+            if self.isGameOver{
+                timer.invalidate()
+                return
+            }
+            
+            if self.bubbles.count < self.maxBubbles {
+                self.spawnBubbles()
+            }
+            
         }
+        
         
     }
     
     private func startCountDown(){
         coundownTimer?.invalidate()
         
-        coundownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {timer in
+        coundownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {[weak self] timer in
+            guard let self = self  else {
+                timer.invalidate()
+                return
+            }
+            
             if self.timeRemaining > 0{
                 self.timeRemaining -= 1
             } else {
@@ -146,47 +158,78 @@ class GameManager: ObservableObject {
         }
     }
     
-    
-    func popBubble(_ bubble: Bubble){
+    func popBubble(_ bubble: Bubble,position:CGPoint){
         guard let index = bubbles.firstIndex(where: {$0.id == bubble.id}),!bubbles[index].isPopped else {return}
         
+        print("Popping bubble at user specified position: \(position)")
+        
+        bubbles[index].isPopped = true
+                
+        let pointToAdd = calculatePoints(bubble, at:index)
+        
+        createPointEffect(at:position, points: pointToAdd)
+        
+        scheduledBubbleRemoval(bubble)
+    }
+    
+    
+    
 //        calculate point
-        var pointToAdd:Int
-        if let lastScore = lastPoppedScore, lastPoppedColor==bubbles[index].color{
+    private func calculatePoints(_ bubble: Bubble,at index:Int) ->Int {
+        var pointToAdd: Int
+        if let lastScore = lastPoppedScore, lastPoppedColor==bubble.color{
             pointToAdd = Int(Double(lastScore) * 1.5)
         } else {
-            pointToAdd = bubbles[index].point
+            pointToAdd = bubble.point
         }
-        
 //        update point condition
         score += pointToAdd
-        lastPoppedColor = bubbles[index].color
+        lastPoppedColor = bubble.color
         lastPoppedScore = Double(pointToAdd)
+        
+        return pointToAdd
+    }
+    
+    private func createPointEffect(at position:CGPoint,points:Int) {
+        print("Creating point effect at position: \(position)")
         
 //        add point effect
         let pointEffect = PointEffect(
-            points: pointToAdd, position: bubbles[index].position
+            points: points,
+            position: position
         )
         
-        
-        
-//        delete each factor after animation
-        DispatchQueue.main.async{
+        DispatchQueue.main.async {[weak self] in
+            guard let self = self else {return}
+            
             self.activePoints.append(pointEffect)
-            self.bubbles[index].isPopped = true
+            print("add pointEffect")
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3){
-                self.bubbles.removeAll{$0.id == bubble.id}
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1){
-                self.activePoints.removeAll{$0.id == pointEffect.id}
-            }
-            
+            self.scheduledPointEffectRemoval(pointEffect)
         }
         
-
-        
     }
+    
+    private func scheduledBubbleRemoval(_ bubble:Bubble){
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3){ [weak self] in
+            guard let self = self else {return}
+            
+            if let index = self.bubbles.firstIndex(where: {$0.id == bubble.id}){
+                self.bubbles.remove(at: index)
+            }
+        }
+    }
+    
+    private func scheduledPointEffectRemoval(_ pointEffect:PointEffect){
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1){ [weak self] in
+            guard let self = self else {return}
+            
+            if let pointIndex = self.activePoints.firstIndex(where: {$0.id == pointEffect.id}){
+                self.activePoints.remove(at: pointIndex)
+                print("remove pointEffect")
+            }
+        }
+    }
+    
     
 }

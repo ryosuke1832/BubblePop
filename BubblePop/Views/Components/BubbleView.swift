@@ -11,6 +11,7 @@ import SwiftUI
 struct BubbleView: View {
     let bubble: Bubble
     @ObservedObject var gameManager: GameManager
+    @State private var currentPosition:CGPoint? = nil
 
     
     var body: some View {
@@ -32,9 +33,10 @@ struct BubbleView: View {
         }
         .frame(width: 50, height: 50)
         .position(bubble.position)
-        .onTapGesture {
+        .onTapGesture { location in
             if !bubble.isPopped {
-                gameManager.popBubble(bubble)
+                print("Bubble tapped at: \(location)")
+                gameManager.popBubble(bubble,position:location)
             }
         }
 
