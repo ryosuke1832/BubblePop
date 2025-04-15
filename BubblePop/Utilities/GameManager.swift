@@ -134,10 +134,39 @@ class GameManager: ObservableObject {
         guard let selected = colorDistribution.first(where: {$0.threshold > randomValue}) else {
             return
         }
+        let bubbleRadius:CGFloat = 40
+        let maxAttempts = 20
+        var currentAttempt = 0
+        var validPositionFound = false
+        var randomXposition : CGFloat = 0
+        var randomSpeed :Double = 0
         
-        let randomXposition = CGFloat.random(in: 50..<(screenwidth - 50))
-        let randomSpeed = Double.random(in: 5...10)
-        let initialPosition = CGPoint(x: randomXposition, y: screenheight + 50)
+        while currentAttempt < maxAttempts && !validPositionFound {
+            randomXposition = CGFloat.random(in: (bubbleRadius + 10)..<(screenwidth - bubbleRadius - 10))
+            randomSpeed = Double.random(in: 5...10)
+            
+            let overlappingBubbles = findOverlappingBubbles(xPosition:randomXposition,radius:bubbleRadius)
+            
+            if overlappingBubbles.isEmpty{
+                validPositionFound = true
+            } else {
+                let slowestOverlappingSpeed = overlappingBubbles.map {$0.speed}.min() ?? Double.infinity
+                
+                if randomSpeed > slowestOverlappingSpeed{
+                    randomSpeed = max(3.0,slowestOverlappingSpeed*0.9)
+                    validPositionFound = true
+                } else {
+                    validPositionFound = true
+                }
+            }
+            currentAttempt += 1
+        }
+        
+        if !validPositionFound {
+            return
+        }
+        
+        let initialPosition = CGPoint(x:randomXposition,y:screenheight + 50)
         var bubble = Bubble(position: initialPosition, color: selected.color, speed: randomSpeed,point:selected.points)
         bubbles.append(bubble)
         
@@ -145,6 +174,17 @@ class GameManager: ObservableObject {
             moveBubbleToTop(&bubble)
         }
         
+    }
+    
+    private func findOverlappingBubbles(xPosition:CGFloat,radius:CGFloat) -> [Bubble] {
+        return bubbles.filter{ bubble in
+            if bubble.isPopped{
+                return false
+            }
+            
+            let xDistance = abs(xPosition - bubble.position.x)
+            return xDistance < (radius * 2)
+        }
     }
     
     
@@ -160,8 +200,6 @@ class GameManager: ObservableObject {
     
     func popBubble(_ bubble: Bubble,position:CGPoint){
         guard let index = bubbles.firstIndex(where: {$0.id == bubble.id}),!bubbles[index].isPopped else {return}
-        
-        print("Popping bubble at user specified position: \(position)")
         
         bubbles[index].isPopped = true
                 
@@ -191,7 +229,6 @@ class GameManager: ObservableObject {
     }
     
     private func createPointEffect(at position:CGPoint,points:Int) {
-        print("Creating point effect at position: \(position)")
         
 //        add point effect
         let pointEffect = PointEffect(
@@ -203,7 +240,6 @@ class GameManager: ObservableObject {
             guard let self = self else {return}
             
             self.activePoints.append(pointEffect)
-            print("add pointEffect")
             
             self.scheduledPointEffectRemoval(pointEffect)
         }

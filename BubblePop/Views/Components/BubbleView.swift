@@ -35,7 +35,6 @@ struct BubbleView: View {
         .position(bubble.position)
         .onTapGesture { location in
             if !bubble.isPopped {
-                print("Bubble tapped at: \(location)")
                 gameManager.popBubble(bubble,position:location)
             }
         }
