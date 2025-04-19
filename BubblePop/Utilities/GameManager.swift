@@ -17,6 +17,7 @@ class GameManager: ObservableObject {
     @Published var isGameOver:Bool = false
     @Published var activePoints:[PointEffect] = []
     private var coundownTimer: Timer?
+    private var bubbleSpawnTimer: Timer?
     
     private let screenwidth = UIScreen.main.bounds.width
     private let screenheight = UIScreen.main.bounds.height
@@ -30,6 +31,10 @@ class GameManager: ObservableObject {
         return documentDirectroy.appendingPathComponent(fileName)
     }
 
+    deinit {
+        coundownTimer?.invalidate()
+        bubbleSpawnTimer?.invalidate()
+    }
     
     func saveScore(){
         var scores = loadScores()
@@ -69,6 +74,8 @@ class GameManager: ObservableObject {
     }
     
     func resetGame(){
+        coundownTimer?.invalidate()
+        bubbleSpawnTimer?.invalidate()
         score = 0
         bubbles.removeAll()
         activePoints.removeAll()
@@ -80,12 +87,10 @@ class GameManager: ObservableObject {
 
     
     func startSpawningBubbles(){
-        Timer.scheduledTimer(withTimeInterval: bubbleSpawnInterval, repeats: true) { [weak self] timer in
+        bubbleSpawnTimer?.invalidate()
+        
+        bubbleSpawnTimer = Timer.scheduledTimer(withTimeInterval: bubbleSpawnInterval, repeats: true) { [weak self] timer in
             guard let self = self else {
-                timer.invalidate()
-                return
-            }
-            if self.isGameOver{
                 timer.invalidate()
                 return
             }
@@ -112,7 +117,10 @@ class GameManager: ObservableObject {
                 self.timeRemaining -= 1
             } else {
                 timer.invalidate()
-                DispatchQueue.main.async {
+                self.bubbleSpawnTimer?.invalidate()
+                
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else {return}
                     self.saveScore()
                     self.isGameOver = true
                 }
@@ -140,10 +148,13 @@ class GameManager: ObservableObject {
         var validPositionFound = false
         var randomXposition : CGFloat = 0
         var randomSpeed :Double = 0
+        let startY:Double = screenheight + 50
+        let endY:Double = -150
+        let totalDistance = startY - endY
         
         while currentAttempt < maxAttempts && !validPositionFound {
             randomXposition = CGFloat.random(in: (bubbleRadius + 10)..<(screenwidth - bubbleRadius - 10))
-            randomSpeed = Double.random(in: 5...10)
+            randomSpeed = Double.random(in: 50...150)
             
             let overlapping = findOverlappingBubbles(xPosition:randomXposition,radius:bubbleRadius)
             
@@ -158,14 +169,34 @@ class GameManager: ObservableObject {
             return
         }
         
-        let initialPosition = CGPoint(x:randomXposition,y:screenheight + 50)
-        var bubble = Bubble(position: initialPosition, color: selected.color, speed: randomSpeed,point:selected.points)
-        bubbles.append(bubble)
+        let animationDuration = totalDistance / randomSpeed
+        let initialPosition = CGPoint(x:randomXposition,y: startY)
+        let newBubble = Bubble(position: initialPosition, color: selected.color, speed: randomSpeed,point:selected.points)
         
-        withAnimation(.linear (duration: randomSpeed)){
-            moveBubbleToTop(&bubble)
+        bubbles.append(newBubble)
+        
+        withAnimation(.linear(duration: animationDuration)) {
+            if let index = bubbles.firstIndex(where: {$0.id == newBubble.id}) {
+                var updatedBubble = bubbles[index]
+                updatedBubble.position = CGPoint(x:randomXposition,y:endY)
+                bubbles[index] = updatedBubble
+            }
         }
         
+        let timeToExitScreen = animationDuration + 0.1
+        Timer.scheduledTimer(withTimeInterval: timeToExitScreen, repeats: false) { [weak self] timer in
+            guard let self = self else { return }
+            
+            if let index = self.bubbles.firstIndex(where: { $0.id == newBubble.id }) {
+                if !self.bubbles[index].isPopped {
+                    self.bubbles.remove(at: index)
+                }
+            }
+        }
+        
+        
+    
+
     }
     
     private func findOverlappingBubbles(xPosition:CGFloat,radius:CGFloat) -> Bool {
@@ -185,22 +216,26 @@ class GameManager: ObservableObject {
     }
     
     
-    private func moveBubbleToTop(_ bubble: inout Bubble){
-        let endPosition = CGPoint(x:bubble.position.x,y:-150)
-        bubble.position = endPosition
-        
-        if let index = bubbles.firstIndex(where: {$0.id == bubble.id}){
-            bubbles[index] = bubble
-            
+    private func moveBubble(withID id:UUID,to newPosition:CGPoint){
+        if let index = bubbles.firstIndex(where: {$0.id == id}){
+            DispatchQueue.main.async{[weak self] in
+                guard let self = self else {return}
+                var updatedBubble = self.bubbles[index]
+                updatedBubble.position = newPosition
+                self.bubbles[index] = updatedBubble
+                
+            }
         }
     }
     
+
+    
     func popBubble(_ bubble: Bubble,position:CGPoint){
         guard let index = bubbles.firstIndex(where: {$0.id == bubble.id}),!bubbles[index].isPopped else {return}
-        
+
         bubbles[index].isPopped = true
-                
-        let pointToAdd = calculatePoints(bubble, at:index)
+        
+        let pointToAdd = self.calculatePoints(bubble, at:index)
         
         createPointEffect(at:position, points: pointToAdd)
         
