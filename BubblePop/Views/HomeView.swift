@@ -74,6 +74,7 @@ struct HomeView: View {
                     Spacer(minLength: 50)
                     
                 }
+                .navigationBarHidden(true)
                 
                 if showSettings {
                     SettingView(showSetting: $showSettings, gameManager: gameManager)
@@ -83,8 +84,9 @@ struct HomeView: View {
                 
 
             }
+            
         }
-   
+        .navigationViewStyle(StackNavigationViewStyle())
     }
 }
 

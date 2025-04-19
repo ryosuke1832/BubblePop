@@ -9,7 +9,8 @@ import SwiftUI
 
 struct GameoverView: View {
     @ObservedObject var gameManager:GameManager
-    @State private var isGameComplete: Bool = false
+    @Environment(\.presentationMode) var presentationMode
+    @State private var returnToHome: Bool = false
     
     var body: some View {
         
@@ -25,23 +26,24 @@ struct GameoverView: View {
                     .font(.title)
                     .padding(.top)
                 
-                NavigationLink(destination: ResultView(),isActive:$isGameComplete){
-                    EmptyView()
-                }
-                
-                Button(action: {isGameComplete=true}) {
+                Button(action: {returnToHome=true}) {
                     Text("Result")
                 }
                 .padding(.top)
-                .navigationBarBackButtonHidden(true)
                 
-
             }
             .padding()
             .frame(width: 320)
             .background(Color.white)
             .cornerRadius(16)
             .shadow(radius: 10)
+            
+            NavigationLink(destination: ResultView()
+                .navigationBarBackButtonHidden(true)
+                .navigationBarHidden(true),
+                           isActive: $returnToHome){
+                EmptyView()
+            }
             
         }
 

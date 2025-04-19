@@ -39,8 +39,11 @@ struct ResultView: View {
 
                     HStack(spacing: 40) {
                         Button("Home") {
-                        }
-                        Button("Again") {
+                            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                               let window = windowScene.windows.first {
+                                window.rootViewController = UIHostingController(rootView: HomeView())
+                                window.makeKeyAndVisible()
+                            }
                         }
                     }
                     .font(.custom("Bebas Neue", size: 40))
@@ -49,12 +52,14 @@ struct ResultView: View {
                     Spacer()
                 }
                 .padding()
+                
             }
         }
         .onAppear {
             loadTopScores()
         }
         .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
 
     }
     

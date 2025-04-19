@@ -20,7 +20,7 @@ class GameManager: ObservableObject {
     
     private let screenwidth = UIScreen.main.bounds.width
     private let screenheight = UIScreen.main.bounds.height
-    private let bubbleSpawnInterval = 1.0
+    private let bubbleSpawnInterval = 0.1
     private var lastPoppedColor: Color?
     private var lastPoppedScore: Double?
     private let fileName = "ScoreData.json"
@@ -102,7 +102,7 @@ class GameManager: ObservableObject {
     private func startCountDown(){
         coundownTimer?.invalidate()
         
-        coundownTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) {[weak self] timer in
+        coundownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {[weak self] timer in
             guard let self = self  else {
                 timer.invalidate()
                 return
