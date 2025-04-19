@@ -102,7 +102,7 @@ class GameManager: ObservableObject {
     private func startCountDown(){
         coundownTimer?.invalidate()
         
-        coundownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {[weak self] timer in
+        coundownTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) {[weak self] timer in
             guard let self = self  else {
                 timer.invalidate()
                 return
@@ -145,20 +145,12 @@ class GameManager: ObservableObject {
             randomXposition = CGFloat.random(in: (bubbleRadius + 10)..<(screenwidth - bubbleRadius - 10))
             randomSpeed = Double.random(in: 5...10)
             
-            let overlappingBubbles = findOverlappingBubbles(xPosition:randomXposition,radius:bubbleRadius)
+            let overlapping = findOverlappingBubbles(xPosition:randomXposition,radius:bubbleRadius)
             
-            if overlappingBubbles.isEmpty{
+            if !overlapping {
                 validPositionFound = true
-            } else {
-                let slowestOverlappingSpeed = overlappingBubbles.map {$0.speed}.min() ?? Double.infinity
-                
-                if randomSpeed > slowestOverlappingSpeed{
-                    randomSpeed = max(3.0,slowestOverlappingSpeed*0.9)
-                    validPositionFound = true
-                } else {
-                    validPositionFound = true
-                }
             }
+
             currentAttempt += 1
         }
         
@@ -176,15 +168,20 @@ class GameManager: ObservableObject {
         
     }
     
-    private func findOverlappingBubbles(xPosition:CGFloat,radius:CGFloat) -> [Bubble] {
-        return bubbles.filter{ bubble in
-            if bubble.isPopped{
-                return false
+    private func findOverlappingBubbles(xPosition:CGFloat,radius:CGFloat) -> Bool {
+        let bubbleDiameter = radius * 2
+        
+        for bubble in bubbles {
+            if bubble.isPopped {
+                continue
             }
-            
             let xDistance = abs(xPosition - bubble.position.x)
-            return xDistance < (radius * 2)
+            if xDistance < bubbleDiameter {
+                return true
+            }
         }
+
+    return false
     }
     
     
