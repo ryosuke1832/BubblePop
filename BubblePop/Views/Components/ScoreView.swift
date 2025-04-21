@@ -10,6 +10,7 @@ import SwiftUI
 struct ScoreView: View {
     let score: Int
     let time:Int
+    let highScore:Int
     
     var body: some View {
         VStack{
@@ -24,6 +25,10 @@ struct ScoreView: View {
                 
                 Text("Time: ") + Text("\(time)").foregroundColor(.blue)
                     .font(.custom("Bebas Neue", size: 30))
+                    .foregroundColor(.white)
+                
+                Text("High Score: ") + Text("\(highScore)").foregroundColor(.green)
+                    .font(.custom("Bebas Neue", size: 25))
                     .foregroundColor(.white)
                 
 

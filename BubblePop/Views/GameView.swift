@@ -32,7 +32,8 @@ struct GameView: View {
                             PointEffectView(point: point)
                         }
                         
-                        ScoreView(score: gameManager.score,time:gameManager.timeRemaining)
+                        ScoreView(score: gameManager.score,time:gameManager.timeRemaining,highScore: gameManager.getHighScore())
+                        
                     }
 
 

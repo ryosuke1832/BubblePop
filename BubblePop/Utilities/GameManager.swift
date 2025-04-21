@@ -22,10 +22,13 @@ class GameManager: ObservableObject {
     
     private let screenwidth = UIScreen.main.bounds.width
     private let screenheight = UIScreen.main.bounds.height
-    private let bubbleSpawnInterval = 0.1
+    private let bubbleSpawnInterval = 0.3
     private var lastPoppedColor: Color?
     private var lastPoppedScore: Double?
     private let fileName = "ScoreData.json"
+    
+    private var initialTimeLimit: Int = 60
+    
     
     private var scoresFileURL: URL{
         let documentDirectroy = FileManager.default.urls(for:.documentDirectory,in:.userDomainMask).first!
@@ -83,7 +86,7 @@ class GameManager: ObservableObject {
         isGameOver = false
         lastPoppedColor = nil
         lastPoppedScore = nil
-        
+        initialTimeLimit = timeRemaining
     }
 
     
@@ -148,14 +151,19 @@ class GameManager: ObservableObject {
         var currentAttempt = 0
         var validPositionFound = false
         var randomXposition : CGFloat = 0
-        var randomSpeed :Double = 0
+        
+        let baseSpeed :Double = 75.0
+        let speedCoefficient:Double = 2.5
+        let timeProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
+        let speedFactor = 1.0 + timeProgress * speedCoefficient
+        let randomSpeed = baseSpeed * speedFactor
+        
         let startY:Double = screenheight + 50
         let endY:Double = -150
         let totalDistance = startY - endY
         
         while currentAttempt < maxAttempts && !validPositionFound {
             randomXposition = CGFloat.random(in: (bubbleRadius + 10)..<(screenwidth - bubbleRadius - 10))
-            randomSpeed = Double.random(in: 50...150)
             
             let overlapping = findOverlappingBubbles(xPosition:randomXposition,radius:bubbleRadius)
             
@@ -202,6 +210,7 @@ class GameManager: ObservableObject {
     
     private func findOverlappingBubbles(xPosition:CGFloat,radius:CGFloat) -> Bool {
         let bubbleDiameter = radius * 2
+        var latestOverlappingBubble: Bubble?
         
         for bubble in bubbles {
             if bubble.isPopped {
@@ -209,11 +218,34 @@ class GameManager: ObservableObject {
             }
             let xDistance = abs(xPosition - bubble.position.x)
             if xDistance < bubbleDiameter {
-                return true
+                if latestOverlappingBubble == nil || bubble.creationTime > latestOverlappingBubble!.creationTime  {
+                    latestOverlappingBubble = bubble
+                }
             }
         }
+        
+        if latestOverlappingBubble == nil {
+            return false
+        }
+        
+        let baseSpeed: Double = 75.0
+        let speedCoefficient: Double = 2.5
+        let timeProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
+        let speedFactor = 1.0 + timeProgress * speedCoefficient
+        let currentSpeed = baseSpeed * speedFactor
+        
+        let startY: Double = screenheight + 50
+        let endY: Double = -150
+        let totalDistance = startY - endY
+        let screenPassTime = totalDistance / currentSpeed
 
-    return false
+        let safetyFactor = 0.15
+        
+        let dynamicMinTime = screenPassTime * safetyFactor
+        
+        let timeSinceLatestBubble = Date().timeIntervalSince(latestOverlappingBubble!.creationTime)
+
+        return timeSinceLatestBubble < dynamicMinTime
     }
     
     
@@ -298,6 +330,12 @@ class GameManager: ObservableObject {
                 print("remove pointEffect")
             }
         }
+    }
+    
+    func getHighScore() -> Int {
+        let scores = loadScores()
+        let sortedScores = scores.sorted { $0.score > $1.score }
+        return sortedScores.first?.score ?? 0
     }
     
     
