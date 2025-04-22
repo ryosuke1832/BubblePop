@@ -11,7 +11,6 @@ import SwiftUI
 struct BubbleView: View {
     let bubble: Bubble
     @ObservedObject var gameManager: GameManager
-    @State private var currentPosition:CGPoint? = nil
 
     
     var body: some View {

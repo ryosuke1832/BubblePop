@@ -9,7 +9,6 @@ import SwiftUI
 
 struct GameoverView: View {
     @ObservedObject var gameManager:GameManager
-    @Environment(\.presentationMode) var presentationMode
     @State private var returnToHome: Bool = false
     
     var body: some View {

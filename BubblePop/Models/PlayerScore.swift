@@ -1,5 +1,5 @@
 //
-//  Bubble.swift
+//  PlayerScore.swift
 //  BubblePop
 //
 //  Created by user on 2025/04/05.

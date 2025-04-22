@@ -24,7 +24,7 @@ class GameManager: ObservableObject {
     private let screenheight = UIScreen.main.bounds.height
     private let bubbleSpawnInterval = 0.3
     private var lastPoppedColor: Color?
-    private var lastPoppedScore: Double?
+    private var lastPoppedScore: Int? = nil
     private let fileName = "ScoreData.json"
     
     private var initialTimeLimit: Int = 60
@@ -34,12 +34,37 @@ class GameManager: ObservableObject {
         let documentDirectroy = FileManager.default.urls(for:.documentDirectory,in:.userDomainMask).first!
         return documentDirectroy.appendingPathComponent(fileName)
     }
-
+    
+    
+// MARK: -Lifecycle
     deinit {
         coundownTimer?.invalidate()
         bubbleSpawnTimer?.invalidate()
     }
     
+    
+// MARK: -Game control
+    func startGame() {
+        resetGame()
+        startSpawningBubbles()
+        startCountDown()
+    }
+    
+//  reset setting when game has finished
+    func resetGame(){
+        coundownTimer?.invalidate()
+        bubbleSpawnTimer?.invalidate()
+        score = 0
+        bubbles.removeAll()
+        activePoints.removeAll()
+        isGameOver = false
+        lastPoppedColor = nil
+        lastPoppedScore = nil
+        initialTimeLimit = timeRemaining
+    }
+    
+    
+// MARK: -Score management
     func saveScore(){
         var scores = loadScores()
         let newScore = PlayerScore(name: playerName, score: score)
@@ -69,27 +94,16 @@ class GameManager: ObservableObject {
     }
     
     
-
-    
-    func startGame() {
-        resetGame()
-        startSpawningBubbles()
-        startCountDown()
-    }
-    
-    func resetGame(){
-        coundownTimer?.invalidate()
-        bubbleSpawnTimer?.invalidate()
-        score = 0
-        bubbles.removeAll()
-        activePoints.removeAll()
-        isGameOver = false
-        lastPoppedColor = nil
-        lastPoppedScore = nil
-        initialTimeLimit = timeRemaining
+    func getHighScore() -> Int {
+        let scores = loadScores()
+        let sortedScores = scores.sorted { $0.score > $1.score }
+        return sortedScores.first?.score ?? 0
     }
 
-    
+
+
+// MARK: - Timer Functions
+//    start triger for bubble generate
     func startSpawningBubbles(){
         bubbleSpawnTimer?.invalidate()
         
@@ -108,6 +122,7 @@ class GameManager: ObservableObject {
         
     }
     
+//    start gaming timer
     private func startCountDown(){
         coundownTimer?.invalidate()
         
@@ -133,6 +148,9 @@ class GameManager: ObservableObject {
         
     }
     
+    
+// MARK: - Bubble Management
+    //    bubble generate
     private func spawnBubbles(){
         let colorDistribution: [(color: Color, points: Int, threshold: Double)] = [
             ( Color(red: 1.0, green: 0.1, blue: 0.1), 1, 0.40),
@@ -154,8 +172,19 @@ class GameManager: ObservableObject {
         
         let baseSpeed :Double = 75.0
         let speedCoefficient:Double = 2.5
-        let timeProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
-        let speedFactor = 1.0 + timeProgress * speedCoefficient
+        
+        var adjustedTimeProgress: Double
+        if initialTimeLimit < 60 {
+            let startOffset = (60.0 - Double(initialTimeLimit)) / 60.0
+            let currentProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
+            adjustedTimeProgress = startOffset + currentProgress * (1.0 - startOffset)
+            adjustedTimeProgress = min(max(adjustedTimeProgress, 0.0), 1.0)
+        } else {
+            adjustedTimeProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
+        }
+        
+        let maxSpeedFactor: Double = 3.0
+        let speedFactor = min(1.0 + adjustedTimeProgress * speedCoefficient, maxSpeedFactor)
         let randomSpeed = baseSpeed * speedFactor
         
         let startY:Double = screenheight + 50
@@ -208,6 +237,9 @@ class GameManager: ObservableObject {
 
     }
     
+    
+    
+//    check bubble collision
     private func findOverlappingBubbles(xPosition:CGFloat,radius:CGFloat) -> Bool {
         let bubbleDiameter = radius * 2
         var latestOverlappingBubble: Bubble?
@@ -217,6 +249,8 @@ class GameManager: ObservableObject {
                 continue
             }
             let xDistance = abs(xPosition - bubble.position.x)
+            
+            
             if xDistance < bubbleDiameter {
                 if latestOverlappingBubble == nil || bubble.creationTime > latestOverlappingBubble!.creationTime  {
                     latestOverlappingBubble = bubble
@@ -228,10 +262,25 @@ class GameManager: ObservableObject {
             return false
         }
         
+        let safetyFactor = 0.2
         let baseSpeed: Double = 75.0
         let speedCoefficient: Double = 2.5
-        let timeProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
-        let speedFactor = 1.0 + timeProgress * speedCoefficient
+        
+        var adjustedTimeProgress:Double
+        if initialTimeLimit < 60 {
+            // For short game times, start at the equivalent of a 60-second game
+            let startOffset = (60.0 - Double(initialTimeLimit)) / 60.0
+            let currentProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
+            adjustedTimeProgress = startOffset + currentProgress * (1.0 - startOffset)
+            adjustedTimeProgress = min(max(adjustedTimeProgress, 0.0), 1.0)
+        } else {
+            // For normal 60-second games, calculation as before
+            adjustedTimeProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
+        }
+
+
+        let maxSpeedFactor: Double = 3.0
+        let speedFactor = min(1.0 + adjustedTimeProgress * speedCoefficient, maxSpeedFactor)
         let currentSpeed = baseSpeed * speedFactor
         
         let startY: Double = screenheight + 50
@@ -239,7 +288,7 @@ class GameManager: ObservableObject {
         let totalDistance = startY - endY
         let screenPassTime = totalDistance / currentSpeed
 
-        let safetyFactor = 0.15
+
         
         let dynamicMinTime = screenPassTime * safetyFactor
         
@@ -249,20 +298,10 @@ class GameManager: ObservableObject {
     }
     
     
-    private func moveBubble(withID id:UUID,to newPosition:CGPoint){
-        if let index = bubbles.firstIndex(where: {$0.id == id}){
-            DispatchQueue.main.async{[weak self] in
-                guard let self = self else {return}
-                var updatedBubble = self.bubbles[index]
-                updatedBubble.position = newPosition
-                self.bubbles[index] = updatedBubble
-                
-            }
-        }
-    }
     
 
-    
+// MARK: - Bubble Interaction
+//    pop bubble
     func popBubble(_ bubble: Bubble,position:CGPoint){
         guard let index = bubbles.firstIndex(where: {$0.id == bubble.id}),!bubbles[index].isPopped else {return}
 
@@ -288,11 +327,13 @@ class GameManager: ObservableObject {
 //        update point condition
         score += pointToAdd
         lastPoppedColor = bubble.color
-        lastPoppedScore = Double(pointToAdd)
+        lastPoppedScore = pointToAdd
         
         return pointToAdd
     }
     
+    
+//    create point effect
     private func createPointEffect(at position:CGPoint,points:Int) {
         
 //        add point effect
@@ -311,6 +352,8 @@ class GameManager: ObservableObject {
         
     }
     
+    
+//    pop bubble when bubble is been touched
     private func scheduledBubbleRemoval(_ bubble:Bubble){
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3){ [weak self] in
             guard let self = self else {return}
@@ -321,22 +364,19 @@ class GameManager: ObservableObject {
         }
     }
     
+    
+//    pop point effect after 1 second
+    
     private func scheduledPointEffectRemoval(_ pointEffect:PointEffect){
         DispatchQueue.main.asyncAfter(deadline: .now() + 1){ [weak self] in
             guard let self = self else {return}
             
             if let pointIndex = self.activePoints.firstIndex(where: {$0.id == pointEffect.id}){
                 self.activePoints.remove(at: pointIndex)
-                print("remove pointEffect")
             }
         }
     }
-    
-    func getHighScore() -> Int {
-        let scores = loadScores()
-        let sortedScores = scores.sorted { $0.score > $1.score }
-        return sortedScores.first?.score ?? 0
-    }
+
     
     
 }

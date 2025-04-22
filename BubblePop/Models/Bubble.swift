@@ -18,6 +18,5 @@ struct Bubble:Identifiable{
     var speed:Double
     var point:Int
     var creationTime: Date = Date()
-    
-    var lastTappedPosition:CGPoint?
+
 }
