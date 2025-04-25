@@ -29,20 +29,33 @@ class GameManager: ObservableObject {
     @Published var isGameOver:Bool = false
     @Published var activePoints:[PointEffect] = []
     
+    // time management
     private var coundownTimer: Timer?
     private var bubbleSpawnTimer: Timer?
+    private let bubbleSpawnInterval = 0.3
+    private var initialTimeLimit: Int = 60
     
+    // additonal point correspond to last bubble
+    private var lastPoppedColor: Color?
+    private var lastPoppedScore: Int? = nil
+
+    
+    // bubble speed
+    private let baseSpeed: Double = 75.0
+    private let speedCoefficient: Double = 2.5
+    private let maxSpeedFactor: Double = 3.0
+    private let safetyFactor = 0.3
+    
+    // screen and position
+    private let startY: Double = UIScreen.main.bounds.height + 50
+    private let endY: Double = -150
+    private let totalDistance: Double = UIScreen.main.bounds.height + 50 - (-150) //startY - endY
+    private let bubbleRadius: CGFloat = 40
     private let screenwidth = UIScreen.main.bounds.width
     private let screenheight = UIScreen.main.bounds.height
     
-    private let bubbleSpawnInterval = 0.3
-    private var lastPoppedColor: Color?
-    private var lastPoppedScore: Int? = nil
+    // Score save and load
     private let fileName = "ScoreData.json"
-    
-    private var initialTimeLimit: Int = 60
-    
-    
     private var scoresFileURL: URL{
         let documentDirectroy = FileManager.default.urls(for:.documentDirectory,in:.userDomainMask).first!
         return documentDirectroy.appendingPathComponent(fileName)
@@ -193,7 +206,7 @@ class GameManager: ObservableObject {
      *
      * - Selects bubble color and points based on probability distribution
      * - Calculates position to avoid overlap with existing bubbles
-     * - Sets up animation for bubble movement
+     * - Sets up animation for bubble movement Y- -> Y+
      * - Schedules automatic removal when the bubble exits the screen
      */
     private func spawnBubbles(){
@@ -209,32 +222,15 @@ class GameManager: ObservableObject {
         guard let selected = colorDistribution.first(where: {$0.threshold > randomValue}) else {
             return
         }
-        let bubbleRadius:CGFloat = 40
+
         let maxAttempts = 20
         var currentAttempt = 0
         var validPositionFound = false
         var randomXposition : CGFloat = 0
         
-        let baseSpeed :Double = 75.0
-        let speedCoefficient:Double = 2.5
+        let randomSpeed = getCurrentSpeed()
+
         
-        var adjustedTimeProgress: Double
-        if initialTimeLimit < 60 {
-            let startOffset = (60.0 - Double(initialTimeLimit)) / 60.0
-            let currentProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
-            adjustedTimeProgress = startOffset + currentProgress * (1.0 - startOffset)
-            adjustedTimeProgress = min(max(adjustedTimeProgress, 0.0), 1.0)
-        } else {
-            adjustedTimeProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
-        }
-        
-        let maxSpeedFactor: Double = 3.0
-        let speedFactor = min(1.0 + adjustedTimeProgress * speedCoefficient, maxSpeedFactor)
-        let randomSpeed = baseSpeed * speedFactor
-        
-        let startY:Double = screenheight + 50
-        let endY:Double = -150
-        let totalDistance = startY - endY
         
         while currentAttempt < maxAttempts && !validPositionFound {
             randomXposition = CGFloat.random(in: (bubbleRadius + 10)..<(screenwidth - bubbleRadius - 10))
@@ -276,20 +272,18 @@ class GameManager: ObservableObject {
                 }
             }
         }
-        
-        
-    
-
     }
     
     
     
     /**
-     * Checks if a new bubble at the specified position would overlap with existing bubbles
+     * Checks if a new bubble at the specified location overlaps an existing bubble.
      *
-     * @param xPosition X-coordinate for the new bubble
-     * @param radius Radius of the bubble
-     * @return true if overlap detected, false otherwise
+     * @param xPosition X coordinate of the new bubble.
+     * @param radius Radius of the bubble.
+     * Returns true if overlap is detected, false otherwise.
+     * If there is a possibility of interference in the x-axis, perform additional interference determination in the y-axis.
+     * Time-based algorithm is used for y-axis collision determination
      */
     private func findOverlappingBubbles(xPosition:CGFloat,radius:CGFloat) -> Bool {
         let bubbleDiameter = radius * 2
@@ -313,41 +307,42 @@ class GameManager: ObservableObject {
             return false
         }
         
-        let safetyFactor = 0.2
-        let baseSpeed: Double = 75.0
-        let speedCoefficient: Double = 2.5
+        // Calculate time progression
+        let currentSpeed = getCurrentSpeed()
+        //  Calculate the time it takes to pass through the screen
+        let screenPassTime = totalDistance / currentSpeed
+        // Safety interval time ((safetyFactor)% of screen transit time)
+        let dynamicMinTime = screenPassTime * safetyFactor
+        // Elapsed time since the last overlapping bubble was generated
+        let timeSinceLatestBubble = Date().timeIntervalSince(latestOverlappingBubble!.creationTime)
         
-        var adjustedTimeProgress:Double
+        // If sufficient time has not elapsed, judged as a collision
+        return timeSinceLatestBubble < dynamicMinTime
+    }
+
+    // Calculate time progression
+    private func calculateTimeProgress() -> Double {
+        var adjustedTimeProgress: Double
         if initialTimeLimit < 60 {
-            // For short game times, start at the equivalent of a 60-second game
             let startOffset = (60.0 - Double(initialTimeLimit)) / 60.0
             let currentProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
             adjustedTimeProgress = startOffset + currentProgress * (1.0 - startOffset)
-            adjustedTimeProgress = min(max(adjustedTimeProgress, 0.0), 1.0)
+            return min(max(adjustedTimeProgress, 0.0), 1.0)
         } else {
-            // For normal 60-second games, calculation as before
-            adjustedTimeProgress = Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
+            return Double(initialTimeLimit - timeRemaining) / Double(initialTimeLimit)
         }
-
-
-        let maxSpeedFactor: Double = 3.0
-        let speedFactor = min(1.0 + adjustedTimeProgress * speedCoefficient, maxSpeedFactor)
-        let currentSpeed = baseSpeed * speedFactor
-        
-        let startY: Double = screenheight + 50
-        let endY: Double = -150
-        let totalDistance = startY - endY
-        let screenPassTime = totalDistance / currentSpeed
-
-
-        
-        let dynamicMinTime = screenPassTime * safetyFactor
-        
-        let timeSinceLatestBubble = Date().timeIntervalSince(latestOverlappingBubble!.creationTime)
-
-        return timeSinceLatestBubble < dynamicMinTime
     }
     
+    // Calculate the current velocity coefficient
+    private func calculateSpeedFactor() -> Double {
+        let timeProgress = calculateTimeProgress()
+        return min(1.0 + timeProgress * speedCoefficient, maxSpeedFactor)
+    }
+    
+    // Get current speed
+    private func getCurrentSpeed() -> Double {
+        return baseSpeed * calculateSpeedFactor()
+    }
     
     
 

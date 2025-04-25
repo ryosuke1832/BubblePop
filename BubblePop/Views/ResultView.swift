@@ -37,6 +37,7 @@ struct ResultView: View {
                 
             }
         }
+        .navigationViewStyle(StackNavigationViewStyle())
         .onAppear {
             loadTopScores()
         }
