@@ -9,19 +9,32 @@
 import Foundation
 import SwiftUI
 
+/**
+ * GameManager
+ *
+ * Main controller class for the BubblePop game that manages:
+ * - Game state (score, timer, bubbles)
+ * - Bubble generation and physical placement
+ * - User interaction handling
+ * - Score calculation and high score management
+ * - Game session lifecycle
+ */
+
 class GameManager: ObservableObject {
     @Published var score: Int = 0
-    @Published  var bubbles:[Bubble] = []
+    @Published var bubbles:[Bubble] = []
     @Published var timeRemaining:Int = 60
     @Published var maxBubbles:Int = 15
     @Published var playerName: String = ""
     @Published var isGameOver:Bool = false
     @Published var activePoints:[PointEffect] = []
+    
     private var coundownTimer: Timer?
     private var bubbleSpawnTimer: Timer?
     
     private let screenwidth = UIScreen.main.bounds.width
     private let screenheight = UIScreen.main.bounds.height
+    
     private let bubbleSpawnInterval = 0.3
     private var lastPoppedColor: Color?
     private var lastPoppedScore: Int? = nil
@@ -50,7 +63,6 @@ class GameManager: ObservableObject {
         startCountDown()
     }
     
-//  reset setting when game has finished
     func resetGame(){
         coundownTimer?.invalidate()
         bubbleSpawnTimer?.invalidate()
@@ -65,6 +77,11 @@ class GameManager: ObservableObject {
     
     
 // MARK: -Score management
+    /**
+     * Saves the current score to persistent storage
+     *
+     * Appends the player name and final score to the JSON file
+     */
     func saveScore(){
         var scores = loadScores()
         let newScore = PlayerScore(name: playerName, score: score)
@@ -79,6 +96,12 @@ class GameManager: ObservableObject {
         }
     }
     
+
+    /**
+     * Loads saved score data from persistent storage
+     *
+     * @return Array of all saved player scores
+     */
     func loadScores() -> [PlayerScore]{
         guard FileManager.default.fileExists(atPath: scoresFileURL.path) else {
             return []
@@ -96,14 +119,20 @@ class GameManager: ObservableObject {
     
     func getHighScore() -> Int {
         let scores = loadScores()
-        let sortedScores = scores.sorted { $0.score > $1.score }
+        let sortedScores = scores.sorted { $0.score > $1.score } //sort high score
         return sortedScores.first?.score ?? 0
     }
 
 
 
 // MARK: - Timer Functions
-//    start triger for bubble generate
+
+    /**
+     * Starts the bubble generation timer
+     *
+     * Creates a timer that spawns bubbles at regular intervals
+     * as long as the current bubble count is below maximum
+     */
     func startSpawningBubbles(){
         bubbleSpawnTimer?.invalidate()
         
@@ -122,7 +151,14 @@ class GameManager: ObservableObject {
         
     }
     
-//    start gaming timer
+    
+    
+    /**
+     * Starts the game countdown timer
+     *
+     * Creates a timer that decrements the remaining time every second
+     * When time reaches zero, the game ends and score is saved
+     */
     private func startCountDown(){
         coundownTimer?.invalidate()
         
@@ -150,7 +186,16 @@ class GameManager: ObservableObject {
     
     
 // MARK: - Bubble Management
-    //    bubble generate
+ 
+    
+    /**
+     * Spawns a new bubble on the screen
+     *
+     * - Selects bubble color and points based on probability distribution
+     * - Calculates position to avoid overlap with existing bubbles
+     * - Sets up animation for bubble movement
+     * - Schedules automatic removal when the bubble exits the screen
+     */
     private func spawnBubbles(){
         let colorDistribution: [(color: Color, points: Int, threshold: Double)] = [
             ( Color(red: 1.0, green: 0.1, blue: 0.1), 1, 0.40),
@@ -239,7 +284,13 @@ class GameManager: ObservableObject {
     
     
     
-//    check bubble collision
+    /**
+     * Checks if a new bubble at the specified position would overlap with existing bubbles
+     *
+     * @param xPosition X-coordinate for the new bubble
+     * @param radius Radius of the bubble
+     * @return true if overlap detected, false otherwise
+     */
     private func findOverlappingBubbles(xPosition:CGFloat,radius:CGFloat) -> Bool {
         let bubbleDiameter = radius * 2
         var latestOverlappingBubble: Bubble?
@@ -301,7 +352,13 @@ class GameManager: ObservableObject {
     
 
 // MARK: - Bubble Interaction
-//    pop bubble
+    
+    /**
+     * Pops a bubble when touched by the player
+     *
+     * @param bubble The bubble to pop
+     * @param position The position where the bubble was popped (for point effect display)
+     */
     func popBubble(_ bubble: Bubble,position:CGPoint){
         guard let index = bubbles.firstIndex(where: {$0.id == bubble.id}),!bubbles[index].isPopped else {return}
 
@@ -316,7 +373,15 @@ class GameManager: ObservableObject {
     
     
     
-//        calculate point
+    /**
+     * Calculates points earned for popping a bubble
+     *
+     * Applies a 1.5x bonus multiplier if the player pops bubbles of the same color consecutively
+     *
+     * @param bubble The popped bubble
+     * @param index The index of the bubble in the bubbles array
+     * @return The points earned
+     */
     private func calculatePoints(_ bubble: Bubble,at index:Int) ->Int {
         var pointToAdd: Int
         if let lastScore = lastPoppedScore, lastPoppedColor==bubble.color{
@@ -333,7 +398,12 @@ class GameManager: ObservableObject {
     }
     
     
-//    create point effect
+    /**
+     * Creates a floating point effect at the specified position
+     *
+     * @param position The position where the effect should appear
+     * @param points The number of points to display
+     */
     private func createPointEffect(at position:CGPoint,points:Int) {
         
 //        add point effect
@@ -353,7 +423,11 @@ class GameManager: ObservableObject {
     }
     
     
-//    pop bubble when bubble is been touched
+    /**
+     * Schedules removal of a popped bubble after animation completes
+     *
+     * @param bubble The bubble to remove
+     */
     private func scheduledBubbleRemoval(_ bubble:Bubble){
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3){ [weak self] in
             guard let self = self else {return}
@@ -365,8 +439,11 @@ class GameManager: ObservableObject {
     }
     
     
-//    pop point effect after 1 second
-    
+    /**
+     * Schedules removal of a point effect after animation completes
+     *
+     * @param pointEffect The point effect to remove
+     */
     private func scheduledPointEffectRemoval(_ pointEffect:PointEffect){
         DispatchQueue.main.asyncAfter(deadline: .now() + 1){ [weak self] in
             guard let self = self else {return}
